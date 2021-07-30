@@ -151,7 +151,8 @@ def main(cfg):
     mae = 0
     variance = 0
 
-    for mode in ["regression", "classification"]:
+#     for mode in ["regression", "classification"]:
+    for mode in ["regression"]:
         if mode == "classification":
             model_path = cfg["REPORT"]["ClassificationCheckpoint"]
         else:
@@ -165,7 +166,7 @@ def main(cfg):
 
         gc.collect()
     logging.info(f'MAE = {mae}')
-    logging.info(f'AUC = {auc}')
+#     logging.info(f'AUC = {auc}')
 
 
 if __name__ == "__main__":

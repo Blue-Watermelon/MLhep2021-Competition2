@@ -25,16 +25,18 @@ class SimpleConv(pl.LightningModule):
         super().__init__()
         self.mode = mode
         self.layer1 = nn.Sequential(
-                    nn.Conv2d(1, 16, kernel_size=5, stride=1, padding=2),
+                    nn.Conv2d(1, 16, kernel_size=5, stride=1, padding=1),
                     nn.BatchNorm2d(16),
                     nn.ReLU(),
-                    nn.MaxPool2d(kernel_size=19, stride=7),
+#                     nn.MaxPool2d(kernel_size=19, stride=7),
+                    nn.MaxPool2d(kernel_size=19, stride=3),
                     nn.Flatten(),
                 )
 
         self.drop_out = nn.Dropout()
 
-        self.fc1 = nn.Linear(3600, 500)
+#         self.fc1 = nn.Linear(3600, 500)
+        self.fc1 = nn.Linear(18496, 500)        
         self.fc2 = nn.Linear(500, 2)  # for classification
         self.fc3 = nn.Linear(500, 1)  # for regression
 
@@ -50,7 +52,7 @@ class SimpleConv(pl.LightningModule):
         self.train_acc = pl.metrics.Accuracy()
         self.valid_acc = pl.metrics.Accuracy()
         self.test_acc = pl.metrics.Accuracy()
-
+        
     def training_step(self, batch, batch_idx):
         # --------------------------
         x_target, class_target, reg_target, _ = batch
@@ -67,11 +69,11 @@ class SimpleConv(pl.LightningModule):
 
         else:
             reg_pred = self.regression(x_target.float())
-            #             reg_loss = F.l1_loss(reg_pred, reg_target.float().view(-1, 1))
-            reg_loss = F.mse_loss(reg_pred, reg_target.float().view(-1, 1))
+            reg_loss = F.l1_loss(reg_pred, reg_target.float().view(-1, 1))
+#             reg_loss = F.mse_loss(reg_pred, reg_target.float().view(-1, 1))
 
             #             reg_loss = torch.sum(torch.abs(reg_pred - reg_target.float().view(-1, 1)) / reg_target.float().view(-1, 1))
-            self.log("regression_loss", reg_loss)
+            self.log("reg_train_loss", reg_loss)
             return reg_loss
 
     def training_epoch_end(self, outs):
@@ -79,7 +81,12 @@ class SimpleConv(pl.LightningModule):
         if self.mode == "classification":
             self.log("train_acc_epoch", self.train_acc.compute())
         else:
-            pass
+#             pass
+            avg_loss = torch.stack([x['loss'] for x in outs]).mean()
+            # logging using tensorboard logger
+            self.logger.experiment.add_scalar("Loss/Train",
+                                            avg_loss,
+                                            self.current_epoch)
 
     def validation_step(self, batch, batch_idx):
         x_target, class_target, reg_target, _ = batch
@@ -90,17 +97,39 @@ class SimpleConv(pl.LightningModule):
             )
             self.valid_acc(torch.sigmoid(class_pred), class_target)
             self.log("valid_acc", self.valid_acc.compute())
-            self.log("classification_loss", class_loss)
-            return class_loss
+#             self.log("classification_loss", class_loss)
+#             return class_loss
+            logs={"val_loss": class_loss}
+            self.log('val_loss', logs['val_loss'])
+            batch_dictionary={
+                "loss": class_loss,
+                "log": logs
+            }
 
         else:
             reg_pred = self.regression(x_target.float())
-            #             reg_loss = F.l1_loss(reg_pred, reg_target.float().view(-1, 1))
-            reg_loss = F.mse_loss(reg_pred, reg_target.float().view(-1, 1))
+            reg_loss = F.l1_loss(reg_pred, reg_target.float().view(-1, 1))
+#             reg_loss = F.mse_loss(reg_pred, reg_target.float().view(-1, 1))
 
             #             reg_loss = torch.sum(torch.abs(reg_pred - reg_target.float().view(-1, 1)) / reg_target.float().view(-1, 1))
-            self.log("regression_loss", reg_loss)
-            return reg_loss
+#             self.log("regression_loss", reg_loss)
+#             return reg_loss
+            # logs- a dictionary
+            logs={"val_loss": reg_loss}
+            self.log('val_loss', logs['val_loss'])
+
+            batch_dictionary={
+                "loss": reg_loss,
+                "log": logs
+            }
+        return batch_dictionary
+        
+    def validation_epoch_end(self, outs):
+        avg_loss = torch.stack([x['loss'] for x in outs]).mean()
+        # logging using tensorboard logger
+        self.logger.experiment.add_scalar("Loss/Validation",
+                                        avg_loss,
+                                        self.current_epoch)
 
 #    def test_step(self, batch, batch_idx):
 #        # --------------------------

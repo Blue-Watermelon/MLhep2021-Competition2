@@ -30,6 +30,7 @@ def compute_predictions(mode, dataloader, checkpoint_path, cfg):
         logging.info("Regression model loaded")
 
     for img, name in iter(dataloader):
+        
         if mode == "classification":
             dict_pred["id"].extend(map(lambda x: x.strip('.png'), name))
             output = model(img)["class"].detach()[:, 1].numpy()
@@ -56,7 +57,7 @@ def main():
     dl = dataset_dm.test_dataloader()
 
     dict_pred = defaultdict(list)
-    for mode in ["regression", "classification"]:
+    for mode in ["classification", "regression"]:
         if mode == "classification":
             model_path = config["REPORT"]["ClassificationCheckpoint"]
         else:
@@ -66,7 +67,9 @@ def main():
 
     data_frame = pd.DataFrame(dict_pred,
                               columns=["id", "energy", "particle"])
+#     print(data_frame.head())
     data_frame.set_index("id", inplace=True)
+#     print(data_frame.head())
     data_frame.to_csv('submission_classification.csv.gz',
                       index=True, header=True, index_label="id", columns=["particle"])
     data_frame.to_csv('submission_regression.csv.gz',
